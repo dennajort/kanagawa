@@ -1,0 +1,29 @@
+image: golang:latest
+
+before_script:
+    - ln -s /builds /go/src/gitlab.com/$CI_PROJECT_PATH
+    - cd /go/src/gitlab.com/$CI_PROJECT_PATH
+
+stages:
+    - test
+    # - build
+
+format:
+    stage: test
+    script:
+        - curl https://glide.sh/get | sh
+        - glide install
+        - go tool vet -composites=false -shadow=true *.go
+        - go test -race $(go list ./... | grep -v /vendor/)
+
+# compile:
+    # stage: build
+    # script:
+        # Add here all the dependencies, or use glide/govendor/...
+        # to get them automatically.
+        # - go get github.com/alecthomas/kingpin
+        # Better put this in a Makefile
+        # - go build -race -ldflags "-extldflags '-static'" -o mybinary
+    # artifacts:
+        # paths:
+            # - mybinary
