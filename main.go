@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/gossel-j/neptune/src/bencode"
+	"gitlab.com/dennajort/neptune/src/bencode"
 )
 
 func printInt(i int64) {
