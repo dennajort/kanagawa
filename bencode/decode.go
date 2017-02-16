@@ -2,7 +2,7 @@ package bencode
 
 import (
 	"bufio"
-	"errors"
+	"fmt"
 	"io"
 )
 
@@ -16,7 +16,7 @@ func decodeIntegerLimit(r *bufio.Reader, e byte) (int64, error) {
 		case c >= '0' && c <= '9':
 			i = i*10 + int64(c-'0')
 		default:
-			return i, errors.New("Invalid character")
+			return i, fmt.Errorf("Invalid character %c", c)
 		}
 	}
 }

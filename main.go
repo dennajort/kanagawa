@@ -4,12 +4,8 @@ import (
 	"log"
 	"os"
 
-	"gitlab.com/dennajort/neptune/src/bencode"
+	"gitlab.com/dennajort/neptune/bencode"
 )
-
-func printInt(i int64) {
-	println(i)
-}
 
 func main() {
 	data, err := bencode.Decode(os.Stdin)
