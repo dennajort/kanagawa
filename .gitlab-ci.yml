@@ -1,8 +1,10 @@
 image: golang:latest
 
 before_script:
-    - ln -s /builds /go/src/gitlab.com/$CI_PROJECT_PATH
-    - cd /go/src/gitlab.com/$CI_PROJECT_PATH
+    - ln -s /builds $GOPATH/src/gitlab.com
+    - cd $GOPATH/src/gitlab.com/$CI_PROJECT_PATH
+    - curl https://glide.sh/get | sh
+    - glide install
 
 stages:
     - test
@@ -11,8 +13,6 @@ stages:
 format:
     stage: test
     script:
-        - curl https://glide.sh/get | sh
-        - glide install
         - go tool vet -composites=false -shadow=true *.go
         - go test -race $(go list ./... | grep -v /vendor/)
 
