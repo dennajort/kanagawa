@@ -5,16 +5,23 @@ import (
 	"os"
 
 	"gitlab.com/dennajort/neptune/bencode"
+	"gitlab.com/dennajort/neptune/metadata"
 )
 
 func main() {
-	data, err := bencode.Decode(os.Stdin)
+	meta := metadata.Metadata{}
+	err := bencode.Decode(os.Stdin, &meta)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
-	log.Println(data)
-	err = bencode.Marshal(os.Stdout, data)
+	// log.Println(meta)
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0755)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
+	err = bencode.Encode(devNull, meta)
+	if err != nil {
+		log.Panic(err)
+	}
+	devNull.Close()
 }

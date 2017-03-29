@@ -1,68 +1,99 @@
 package bencode
 
 import (
-	"bytes"
-	"strings"
+	"io/ioutil"
+	"os"
 	"testing"
 )
 
+func BenchmarkDecode(b *testing.B) {
+	file, err := os.Open("../C6B799F16A508CDA19982D987027C3AD268413AF.torrent")
+	if err != nil {
+		b.Fail()
+	}
+	buff, err := ioutil.ReadAll(file)
+	if err != nil {
+		b.Fail()
+	}
+	var data map[string]interface{}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		err = Unmarshal(buff, &data)
+		if err != nil {
+			b.Fail()
+		}
+	}
+}
+
 func TestDecodeDict(t *testing.T) {
 	t.Run("Empty dict", func(t *testing.T) {
-		i, err := Decode(strings.NewReader("de"))
-		if err != nil {
+		var d struct{}
+		if err := UnmarshalString("de", &d); err != nil {
 			t.Error(err)
-		}
-		d := i.(map[string]interface{})
-		if len(d) != 0 {
-			t.Fail()
 		}
 	})
 
 	t.Run("Missing end", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("d")); err == nil {
+		var d struct{}
+		if err := UnmarshalString("d", &d); err == nil {
 			t.Fail()
 		}
 	})
 
 	t.Run("Dict of {foo:42}", func(t *testing.T) {
-		i, err := Decode(strings.NewReader("d3:fooi42ee"))
-		if err != nil {
+		d := struct {
+			Foo int64
+		}{}
+		if err := UnmarshalString("d3:Fooi42ee", &d); err != nil {
 			t.Error(err)
 		}
-		d := i.(map[string]interface{})
-		if len(d) != 1 {
-			t.Fail()
-		}
-		if d["foo"].(int64) != 42 {
+		if d.Foo != 42 {
 			t.Error("Int is not 42")
 		}
 	})
 
-	t.Run("Dict of {foo:42,bar:24}", func(t *testing.T) {
-		i, err := Decode(strings.NewReader("d3:fooi42e3:bari24ee"))
-		if err != nil {
+	t.Run("Dict of {Foo:42,Bar:24}", func(t *testing.T) {
+		d := struct {
+			Foo int64
+			Bar int64
+		}{}
+		if err := UnmarshalString("d3:Fooi42e3:Bari24ee", &d); err != nil {
 			t.Error(err)
 		}
-		d := i.(map[string]interface{})
-		if len(d) != 2 {
-			t.Fail()
-		}
-		if d["foo"].(int64) != 42 {
+		if d.Foo != 42 {
 			t.Error("Int is not 42")
 		}
-		if d["bar"].(int64) != 24 {
+		if d.Bar != 24 {
+			t.Error("Int is not 24")
+		}
+	})
+
+	t.Run("Dict of {Foo:42,Bar:42} with tags", func(t *testing.T) {
+		d := struct {
+			Foo int64 `benc:"Bar"`
+			Bar int64 `benc:"Foo"`
+		}{}
+		if err := UnmarshalString("d3:Fooi42e3:Bari24ee", &d); err != nil {
+			t.Error(err)
+		}
+		if d.Foo != 24 {
+			t.Error("Int is not 42")
+		}
+		if d.Bar != 42 {
 			t.Error("Int is not 24")
 		}
 	})
 
 	t.Run("Dict with wrong key", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("di42e3:fooe")); err == nil {
+		var d struct{}
+		if err := UnmarshalString("di42e3:fooe", &d); err == nil {
 			t.Fail()
 		}
 	})
 
 	t.Run("Dict with wrong value", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("d3:foofe")); err == nil {
+		var d struct{}
+		if err := UnmarshalString("d3:foofe", &d); err == nil {
 			t.Fail()
 		}
 	})
@@ -70,42 +101,40 @@ func TestDecodeDict(t *testing.T) {
 
 func TestDecodeList(t *testing.T) {
 	t.Run("Empty list", func(t *testing.T) {
-		i, err := Decode(strings.NewReader("le"))
-		if err != nil {
+		var l []int64
+		if err := UnmarshalString("le", &l); err != nil {
 			t.Error(err)
 		}
-		l := i.([]interface{})
 		if len(l) != 0 {
 			t.Fail()
 		}
 	})
 
 	t.Run("Missing end", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("l")); err == nil {
+		var l []int64
+		if err := UnmarshalString("l", &l); err == nil {
 			t.Fail()
 		}
 	})
 
 	t.Run("List of [42]", func(t *testing.T) {
-		i, err := Decode(strings.NewReader("li42ee"))
-		if err != nil {
+		var l []int64
+		if err := UnmarshalString("li42ee", &l); err != nil {
 			t.Error(err)
 		}
-		l := i.([]interface{})
 		if len(l) != 1 {
 			t.Fail()
 		}
-		if l[0].(int64) != 42 {
+		if l[0] != 42 {
 			t.Fail()
 		}
 	})
 
 	t.Run("List of [42,'foo']", func(t *testing.T) {
-		i, err := Decode(strings.NewReader("li42e3:fooe"))
-		if err != nil {
+		var l []interface{}
+		if err := UnmarshalString("li42e3:fooe", &l); err != nil {
 			t.Error(err)
 		}
-		l := i.([]interface{})
 		if len(l) != 2 {
 			t.Fail()
 		}
@@ -118,7 +147,8 @@ func TestDecodeList(t *testing.T) {
 	})
 
 	t.Run("List with wrong item", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("lfe")); err == nil {
+		var l []int64
+		if err := UnmarshalString("lfe", &l); err == nil {
 			t.Fail()
 		}
 	})
@@ -126,31 +156,35 @@ func TestDecodeList(t *testing.T) {
 
 func TestDecodeString(t *testing.T) {
 	t.Run("Empty string", func(t *testing.T) {
-		if i, err := Decode(strings.NewReader("0:")); err != nil {
+		s := "foo"
+		if err := UnmarshalString("0:", &s); err != nil {
 			t.Error(err)
-		} else if !bytes.Equal(i.([]byte), []byte{}) {
+		} else if s != "" {
 			t.Fail()
 		}
 	})
 
 	t.Run("Foo string", func(t *testing.T) {
-		if i, err := Decode(strings.NewReader("3:Foo")); err != nil {
+		s := ""
+		if err := UnmarshalString("3:Foo", &s); err != nil {
 			t.Error(err)
-		} else if string(i.([]byte)) != "Foo" {
+		} else if s != "Foo" {
 			t.Fail()
 		}
 	})
 
 	t.Run("Empty string without length", func(t *testing.T) {
-		if i, err := Decode(strings.NewReader(":")); err != nil {
+		s := "foo"
+		if err := UnmarshalString(":", &s); err != nil {
 			t.Error(err)
-		} else if string(i.([]byte)) != "" {
+		} else if s != "" {
 			t.Fail()
 		}
 	})
 
 	t.Run("Too short string", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("42:foo")); err == nil {
+		s := ""
+		if err := UnmarshalString("42:foo", &s); err == nil {
 			t.Fail()
 		}
 	})
@@ -158,53 +192,99 @@ func TestDecodeString(t *testing.T) {
 
 func TestDecodeInteger(t *testing.T) {
 	t.Run("Empty integer", func(t *testing.T) {
-		if i, err := Decode(strings.NewReader("ie")); err != nil {
+		i := int64(42)
+		if err := UnmarshalString("ie", &i); err != nil {
 			t.Error(err)
-		} else if i.(int64) != 0 {
+		} else if i != 0 {
 			t.Fail()
 		}
 	})
 
 	t.Run("Zero integer", func(t *testing.T) {
-		if i, err := Decode(strings.NewReader("i0e")); err != nil {
+		i := int64(42)
+		if err := UnmarshalString("i0e", &i); err != nil {
 			t.Error(err)
-		} else if i.(int64) != 0 {
+		} else if i != 0 {
 			t.Fail()
 		}
 	})
 
 	t.Run("Negative integer", func(t *testing.T) {
-		if i, err := Decode(strings.NewReader("i-42e")); err != nil {
+		i := int64(0)
+		if err := UnmarshalString("i-42e", &i); err != nil {
 			t.Error(err)
-		} else if i.(int64) != -42 {
+		} else if i != -42 {
 			t.Fail()
 		}
 	})
 
 	t.Run("Positive integer", func(t *testing.T) {
-		if i, err := Decode(strings.NewReader("i42e")); err != nil {
+		i := int64(0)
+		if err := UnmarshalString("i42e", &i); err != nil {
 			t.Error(err)
-		} else if i.(int64) != 42 {
+		} else if i != 42 {
+			t.Fail()
+		}
+	})
+
+	t.Run("Unsigned integer", func(t *testing.T) {
+		i := uint64(0)
+		if err := UnmarshalString("i42e", &i); err != nil {
+			t.Error(err)
+		} else if i != 42 {
 			t.Fail()
 		}
 	})
 
 	t.Run("All number", func(t *testing.T) {
-		if i, err := Decode(strings.NewReader("i1234567890e")); err != nil {
+		i := int64(0)
+		if err := UnmarshalString("i1234567890e", &i); err != nil {
 			t.Error(err)
-		} else if i.(int64) != 1234567890 {
+		} else if i != 1234567890 {
+			t.Fail()
+		}
+	})
+
+	t.Run("Invalid target", func(t *testing.T) {
+		s := ""
+		if err := UnmarshalString("i42", &s); err == nil {
 			t.Fail()
 		}
 	})
 
 	t.Run("Missing end", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("i42")); err == nil {
+		i := 0
+		if err := UnmarshalString("i42", &i); err == nil {
 			t.Fail()
 		}
 	})
 
 	t.Run("Missing number and end", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("i")); err == nil {
+		i := 0
+		if err := UnmarshalString("i", &i); err == nil {
+			t.Fail()
+		}
+	})
+
+	t.Run("Integer as Bool", func(t *testing.T) {
+		b := false
+		if err := UnmarshalString("i1e", &b); err != nil {
+			t.Error(err)
+		} else if b != true {
+			t.Fail()
+		}
+	})
+
+	t.Run("Overflow an int", func(t *testing.T) {
+		i := int8(0)
+		if err := UnmarshalString("i1234567890e", &i); err == nil {
+			t.Fail()
+		}
+	})
+
+	t.Run("Overflow an uint", func(t *testing.T) {
+		i := uint8(0)
+		if err := UnmarshalString("i1234567890e", &i); err == nil {
 			t.Fail()
 		}
 	})
@@ -212,7 +292,8 @@ func TestDecodeInteger(t *testing.T) {
 
 func TestDecodeAny(t *testing.T) {
 	t.Run("Empty", func(t *testing.T) {
-		if _, err := Decode(strings.NewReader("")); err == nil {
+		s := ""
+		if err := UnmarshalString("", &s); err == nil {
 			t.Fail()
 		}
 	})
