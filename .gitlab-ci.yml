@@ -1,10 +1,7 @@
-image: golang:latest
+image: golang:1.11
 
-before_script:
-    - ln -s /builds $GOPATH/src/gitlab.com
-    - cd $GOPATH/src/gitlab.com/$CI_PROJECT_PATH
-    - curl https://glide.sh/get | sh
-    - glide install
+variables:
+    GO111MODULE: "on"
 
 stages:
     - test
@@ -14,7 +11,7 @@ testing:
     stage: test
     script:
         - go tool vet -composites=false -shadow=true *.go
-        - go test -v -cover -race $(go list ./... | grep -v /vendor/)
+        - go test -v -cover -race ./...
 
 # compile:
     # stage: build
