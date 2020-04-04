@@ -1,1 +1,1 @@
-module gitlab.com/dennajort/neptune
+module github.com/dennajort/neptune
