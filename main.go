@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/dennajort/neptune/bencode"
-	"github.com/dennajort/neptune/metadata"
+	"github.com/dennajort/kanagawa/bencode"
+	"github.com/dennajort/kanagawa/metadata"
 )
 
 func main() {

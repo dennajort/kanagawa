@@ -1,1 +1,3 @@
-module github.com/dennajort/neptune
+module github.com/dennajort/kanagawa
+
+go 1.16

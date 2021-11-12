@@ -7,7 +7,7 @@ import (
 )
 
 func BenchmarkDecode(b *testing.B) {
-	file, err := os.Open("../C6B799F16A508CDA19982D987027C3AD268413AF.torrent")
+	file, err := os.Open("../2dc18f47afee0307e138dab3015ee7e5154766f6.torrent")
 	if err != nil {
 		b.Fail()
 	}

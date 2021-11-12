@@ -5,6 +5,7 @@ import (
 	"io"
 	"reflect"
 	"runtime"
+	"strconv"
 )
 
 type encoder struct {
@@ -26,27 +27,21 @@ func (e *encoder) write(b []byte) {
 	}
 }
 
-func (e *encoder) writeString(s string) {
-	if _, err := io.WriteString(e.w, s); err != nil {
-		panic(err)
-	}
-}
-
 // marshalStructGetKey return the key for the bencode dict
 // of the corresponding StructField
-func marshalStructGetKey(field reflect.StructField) *string {
+func marshalStructGetKey(field reflect.StructField) string {
 	if field.PkgPath != "" {
-		return nil
+		return ""
 	}
 	tag, exists := field.Tag.Lookup("benc")
 	if !exists {
-		return &field.Name
+		return field.Name
 	}
 	switch tag {
 	case "", "-":
-		return nil
+		return ""
 	default:
-		return &tag
+		return tag
 	}
 }
 
@@ -56,10 +51,10 @@ func (e *encoder) marshalStruct(val reflect.Value) {
 	st := val.Type()
 	for i := 0; i < st.NumField(); i++ {
 		key := marshalStructGetKey(st.Field(i))
-		if key == nil {
+		if key == "" {
 			continue
 		}
-		e.marshalStringOrBytes(reflect.ValueOf(key).Elem())
+		e.marshalString(key)
 		e.marshalAny(val.Field(i))
 	}
 	e.writeByte('e')
@@ -69,7 +64,7 @@ func (e *encoder) marshalStruct(val reflect.Value) {
 func (e *encoder) marshalMap(val reflect.Value) {
 	e.writeByte('d')
 	for _, key := range val.MapKeys() {
-		e.marshalStringOrBytes(key)
+		e.marshalString(key.String())
 		e.marshalAny(val.MapIndex(key))
 	}
 	e.writeByte('e')
@@ -84,35 +79,22 @@ func (e *encoder) marshalArrayOrSlice(val reflect.Value) {
 	e.writeByte('e')
 }
 
-// marshalStringOrBytes create a bencode string
-func (e *encoder) marshalStringOrBytes(val reflect.Value) {
-	e.marshalInt(int64(val.Len()))
+func (e *encoder) marshalBytes(b []byte) {
+	e.marshalInt(int64(len(b)))
 	e.writeByte(':')
-	k := val.Kind()
-	switch {
-	case k == reflect.String:
-		e.writeString(val.String())
-	case k == reflect.Slice && val.Type().Elem().Kind() == reflect.Uint8:
-		e.write(val.Bytes())
-	default:
-		panic(fmt.Errorf("Value is %s not string or []byte", k))
-	}
+	e.write(b)
 }
 
-func (e *encoder) marshalUint(n uint64, depth int) {
-	if n == 0 && depth > 0 {
-		return
+func (e *encoder) marshalString(s string) {
+	e.marshalInt(int64(len(s)))
+	e.writeByte(':')
+	if _, err := io.WriteString(e.w, s); err != nil {
+		panic(err)
 	}
-	e.marshalUint(n/10, depth+1)
-	e.writeByte(uint8(n%10) + '0')
 }
 
 func (e *encoder) marshalInt(n int64) {
-	if n < 0 {
-		n = -n
-		e.writeByte('-')
-	}
-	e.marshalUint(uint64(n), 0)
+	e.write(strconv.AppendInt(nil, n, 10))
 }
 
 func (e *encoder) marshalIntOrUint(val reflect.Value) {
@@ -121,7 +103,7 @@ func (e *encoder) marshalIntOrUint(val reflect.Value) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		e.marshalInt(val.Int())
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		e.marshalUint(val.Uint(), 0)
+		e.write(strconv.AppendUint(nil, val.Uint(), 10))
 	default:
 		panic(fmt.Errorf("Value is %s not Int or Uint", val.Kind()))
 	}
@@ -131,21 +113,26 @@ func (e *encoder) marshalIntOrUint(val reflect.Value) {
 func (e *encoder) marshalAny(val reflect.Value) {
 	switch k := val.Kind(); k {
 	case reflect.String:
-		e.marshalStringOrBytes(val)
+		e.marshalString(val.String())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		e.marshalIntOrUint(val)
 	case reflect.Slice:
 		switch val.Type().Elem().Kind() {
 		case reflect.Uint8:
-			e.marshalStringOrBytes(val)
+			e.marshalBytes(val.Bytes())
 		default:
 			e.marshalArrayOrSlice(val)
 		}
 	case reflect.Array:
 		e.marshalArrayOrSlice(val)
 	case reflect.Map:
-		e.marshalMap(val)
+		switch val.Type().Key().Kind() {
+		case reflect.String:
+			e.marshalMap(val)
+		default:
+			panic(fmt.Errorf("Cannot reflect map key %s", val.Type().Key().Kind()))
+		}
 	case reflect.Interface, reflect.Ptr:
 		e.marshalAny(val.Elem())
 	case reflect.Struct:
